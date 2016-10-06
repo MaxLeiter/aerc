@@ -7,6 +7,11 @@
 #include <sys/time.h>
 #include <time.h>
 
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 #include "email/headers.h"
 #include "config.h"
 #include "state.h"
@@ -33,7 +38,20 @@ void set_status(struct account_state *account, enum account_status state,
 
 	account->status.text = buf;
 	account->status.status = state;
+
+	//http://stackoverflow.com/questions/5167269/clock-gettime-alternative-in-mac-os-x#6725161
+	#ifdef __MACH__
+	clock_serv_t cclock;
+	mach_timespec_t mts;
+	host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+	clock_get_time(cclock, &mts);
+	mach_port_deallocate(mach_task_self(), cclock);
+	account->status.since.tv_sec = mts.tv_sec;
+	account->status.since.tv_nsec = mts.tv_nsec;
+	
+	#else
 	clock_gettime(CLOCK_MONOTONIC, &account->status.since);
+	#endif
 	request_rerender(); // TODO: just rerender the status bar
 }
 
